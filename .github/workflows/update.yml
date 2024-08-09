@@ -1,0 +1,83 @@
+name: update
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # every day
+  workflow_dispatch:
+
+jobs:
+  sync_and_convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v3
+
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        with:
+          upstream_sync_repo: felixonmars/dnsmasq-china-list
+          upstream_sync_branch: master
+          target_sync_branch: master
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          test_mode: false
+
+      - name: Wait for 1.5 minutes
+        run: sleep 90
+
+      - name: Set up Python
+        uses: actions/setup-python@v2.2.2
+        with:
+          python-version: 3.9
+      
+      - name: Install dependencies
+        run: pip3 install glob2
+
+      - name: Force regenerate files
+        env:
+          CN_DNS: ${{ secrets.CN_DNS }}
+          THE_DNS: ${{ secrets.THE_DNS }}
+        run: |
+          python convert.py
+          echo "Files in current directory:"
+          ls -R
+
+      - name: Add timestamp to FAK-DNS.txt
+        run: |
+          if [ -f converted/FAK-DNS.txt ]; then
+            timestamp="# Generated in UTC+8: $(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
+            sed -i "1i$timestamp" converted/FAK-DNS.txt
+            echo "Timestamp added to FAK-DNS.txt"
+            echo "Content of FAK-DNS.txt:"
+            head -n 5 converted/FAK-DNS.txt
+          else
+            echo "FAK-DNS.txt not found in converted directory"
+            exit 1
+          fi
+
+      - name: Force commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          current_time=$(date +'%Y-%m-%d %H:%M:%S')
+          git add -A converted/
+          git commit -m "Force update FAK-DNS.txt - $current_time" --allow-empty
+          git push
+
+      - name: Wait for 30 seconds
+        run: sleep 30
+
+      - name: Create Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: converted-files
+          path: converted/
+
+      - name: Force final commit
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          current_time=$(date +'%Y-%m-%d %H:%M:%S')
+          git add -A
+          git commit -m "Force create artifacts - $current_time" --allow-empty
+          git push
