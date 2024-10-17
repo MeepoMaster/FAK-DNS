@@ -2,7 +2,7 @@ name: Export files
 
 on:
   schedule:
-    - cron: "0 2 * * *" # 每天执行
+    - cron: "0 18 * * *" # 每天执行
   workflow_dispatch:
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
       run: python convert.py
 
     - name: Create Artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v2
       with:
         name: converted-files
         path: converted
