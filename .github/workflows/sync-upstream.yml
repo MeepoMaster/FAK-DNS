@@ -1,0 +1,54 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '0 17 * * *'  # 每天UTC 17:00 运行，相当于北京时间凌晨1:00
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    
+    - name: Configure Git
+      run: |
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+    
+    - name: Add Upstream Remote
+      run: git remote add upstream https://github.com/Leev1s/FAK-DNS.git
+    
+    - name: Fetch All
+      run: |
+        git fetch --all
+        git fetch upstream
+    
+    - name: Sync with Upstream
+      run: |
+        # 备份 .github/workflows 目录
+        cp -r .github/workflows /tmp/workflows_backup
+        
+        # 重置到上游的最新状态
+        git reset --hard upstream/master
+        
+        # 恢复 .github/workflows 目录
+        rm -rf .github/workflows
+        mv /tmp/workflows_backup .github/workflows
+        
+        # 添加更改
+        git add .
+    
+    - name: Commit Changes
+      run: |
+        if [[ -n $(git status -s) ]]; then
+          git commit -m "Sync with upstream, preserving .github/workflows"
+        fi
+    
+    - name: Push Changes
+      run: |
+        git push -f origin HEAD:master
