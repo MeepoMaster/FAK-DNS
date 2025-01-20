@@ -1,0 +1,52 @@
+name: update
+on:
+  schedule:
+    - cron: "0 18 * * *" # 每天
+  workflow_dispatch:
+jobs:
+  sync_and_convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v3
+        
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4
+        with:
+          upstream_sync_repo: felixonmars/dnsmasq-china-list
+          upstream_sync_branch: master
+          target_sync_branch: master
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          test_mode: false
+          
+      - name: Set up Python
+        uses: actions/setup-python@v2.2.2
+        with:
+          python-version: 3.9
+      
+      - name: Install dependencies
+        run: pip3 install glob2
+        
+      - name: Force regenerate files
+        env:
+          CN_DNS: ${{ secrets.CN_DNS }}
+          THE_DNS: ${{ secrets.THE_DNS }}
+        run: |
+          python convert.py
+          echo "Files in current directory:"
+          ls -R
+          
+      - name: Force commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add converted/FAK-DNS.txt
+          git commit -m "Daily update of FAK-DNS.txt" --allow-empty
+          git push
+          
+      - name: Create Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: FAK-DNS
+          path: converted/FAK-DNS.txt
